@@ -37,3 +37,39 @@ async def get_live_fixtures():
             headers=headers
         )
         return response.json()
+
+async def get_odds(fixture_id: int):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/odds",
+            params={"fixture": fixture_id},
+            headers=headers
+        )
+        return response.json()
+
+async def get_topscorers(league_id: int):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/players/topscorers",
+            params={"league": league_id, "season": "2024"},
+            headers=headers
+        )
+        return response.json()
+
+async def get_injuries(league_id: int):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/injuries",
+            params={"league": league_id, "season": "2024"},
+            headers=headers
+        )
+        return response.json()
+
+async def get_headtohead(team1_id: int, team2_id: int):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/fixtures/headtohead",
+            params={"h2h": f"{team1_id}-{team2_id}"},
+            headers=headers
+        )
+        return response.json()
