@@ -127,3 +127,12 @@ async def get_predictions(fixture_id: int):
             headers=headers
         )
         return response.json()
+    
+async def get_leagues():
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/leagues",
+            headers=headers
+        )
+        return response.json()
+   
