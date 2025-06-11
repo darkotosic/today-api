@@ -73,3 +73,57 @@ async def get_headtohead(team1_id: int, team2_id: int):
             headers=headers
         )
         return response.json()
+
+async def get_events(fixture_id: int):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/fixtures/events",
+            params={"fixture": fixture_id},
+            headers=headers
+        )
+        return response.json()
+
+async def get_lineups(fixture_id: int):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/fixtures/lineups",
+            params={"fixture": fixture_id},
+            headers=headers
+        )
+        return response.json()
+
+async def get_fixture_statistics(fixture_id: int):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/fixtures/statistics",
+            params={"fixture": fixture_id},
+            headers=headers
+        )
+        return response.json()
+
+async def get_team_statistics(team_id: int, league_id: int):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/teams/statistics",
+            params={"team": team_id, "league": league_id, "season": "2024"},
+            headers=headers
+        )
+        return response.json()
+
+async def get_player_statistics(player_id: int, league_id: int):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/players",
+            params={"id": player_id, "league": league_id, "season": "2024"},
+            headers=headers
+        )
+        return response.json()
+
+async def get_predictions(fixture_id: int):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/predictions",
+            params={"fixture": fixture_id},
+            headers=headers
+        )
+        return response.json()
