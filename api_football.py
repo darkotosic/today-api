@@ -135,4 +135,13 @@ async def get_leagues():
             headers=headers
         )
         return response.json()
-   
+
+
+async def get_fixtures_by_date(date: str):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/fixtures",
+            params={"date": date},
+            headers=headers
+        )
+        return response.json()
