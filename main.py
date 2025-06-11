@@ -3,7 +3,8 @@ from api_football import (
     get_fixtures_today, get_standings, get_live_fixtures,
     get_odds, get_topscorers, get_injuries, get_headtohead,
     get_events, get_lineups, get_fixture_statistics, get_team_statistics,
-    get_player_statistics, get_predictions, get_leagues
+    get_player_statistics, get_predictions, get_leagues, 
+    get_fixtures_by_date
 )
 
 app = FastAPI()
@@ -64,3 +65,6 @@ async def player_statistics(player_id: int, league_id: int):
 async def leagues():
     return await get_leagues()
 
+@app.get("/fixtures")
+async def fixtures(date: str):
+    return await get_fixtures_by_date(date)
