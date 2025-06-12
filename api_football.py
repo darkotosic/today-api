@@ -18,6 +18,10 @@ fixtures_cache = TTLCache(maxsize=100, ttl=600)  # 10 minutes
 odds_cache = TTLCache(maxsize=1000, ttl=600)
 predictions_cache = TTLCache(maxsize=1000, ttl=600)
 
+# Permanent cache for finished matches (FT)
+odds_cache_ft = TTLCache(maxsize=10000, ttl=99999999)  # ~ long term
+predictions_cache_ft = TTLCache(maxsize=10000, ttl=99999999)
+
 # Lock for async cache safety
 cache_lock = asyncio.Lock()
 
@@ -48,12 +52,17 @@ async def get_live_fixtures():
         )
         return response.json()
 
-async def get_odds_cached(fixture_id: int):
-    cache_key = f"odds_{fixture_id}"
-
-    async with cache_lock:
-        if cache_key in odds_cache:
-            return odds_cache[cache_key]
+async def get_odds_cached(fixture_id: int, is_finished: bool = False):
+    if is_finished:
+        cache_key = f"odds_ft_{fixture_id}"
+        async with cache_lock:
+            if cache_key in odds_cache_ft:
+                return odds_cache_ft[cache_key]
+    else:
+        cache_key = f"odds_{fixture_id}"
+        async with cache_lock:
+            if cache_key in odds_cache:
+                return odds_cache[cache_key]
 
     async with httpx.AsyncClient() as client:
         response = await client.get(
@@ -64,7 +73,10 @@ async def get_odds_cached(fixture_id: int):
         data = response.json()
 
     async with cache_lock:
-        odds_cache[cache_key] = data
+        if is_finished:
+            odds_cache_ft[cache_key] = data
+        else:
+            odds_cache[cache_key] = data
 
     return data
 
@@ -140,12 +152,17 @@ async def get_player_statistics(player_id: int, league_id: int):
         )
         return response.json()
 
-async def get_predictions_cached(fixture_id: int):
-    cache_key = f"predictions_{fixture_id}"
-
-    async with cache_lock:
-        if cache_key in predictions_cache:
-            return predictions_cache[cache_key]
+async def get_predictions_cached(fixture_id: int, is_finished: bool = False):
+    if is_finished:
+        cache_key = f"predictions_ft_{fixture_id}"
+        async with cache_lock:
+            if cache_key in predictions_cache_ft:
+                return predictions_cache_ft[cache_key]
+    else:
+        cache_key = f"predictions_{fixture_id}"
+        async with cache_lock:
+            if cache_key in predictions_cache:
+                return predictions_cache[cache_key]
 
     async with httpx.AsyncClient() as client:
         response = await client.get(
@@ -156,7 +173,10 @@ async def get_predictions_cached(fixture_id: int):
         data = response.json()
 
     async with cache_lock:
-        predictions_cache[cache_key] = data
+        if is_finished:
+            predictions_cache_ft[cache_key] = data
+        else:
+            predictions_cache[cache_key] = data
 
     return data
     
