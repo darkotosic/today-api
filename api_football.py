@@ -145,3 +145,62 @@ async def get_fixtures_by_date(date: str):
             headers=headers
         )
         return response.json()
+    
+
+async def get_players(team_id: int, season: int):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/players",
+            params={"team": team_id, "season": season},
+            headers=headers
+        )
+        return response.json()
+
+async def get_teams(country: str = None, league_id: int = None, season: int = None):
+    async with httpx.AsyncClient() as client:
+        params = {}
+        if country:
+            params["country"] = country
+        if league_id:
+            params["league"] = league_id
+        if season:
+            params["season"] = season
+
+        response = await client.get(
+            f"{BASE_URL}/teams",
+            params=params,
+            headers=headers
+        )
+        return response.json()
+
+async def get_leagues_seasons():
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/leagues/seasons",
+            headers=headers
+        )
+        return response.json()
+
+async def get_transfers(player_id: int):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/transfers",
+            params={"player": player_id},
+            headers=headers
+        )
+        return response.json()
+
+async def get_coachs(team_id: int = None, search: str = None):
+    async with httpx.AsyncClient() as client:
+        params = {}
+        if team_id:
+            params["team"] = team_id
+        if search:
+            params["search"] = search
+
+        response = await client.get(
+            f"{BASE_URL}/coachs",
+            params=params,
+            headers=headers
+        )
+        return response.json()
