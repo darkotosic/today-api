@@ -68,3 +68,24 @@ async def leagues():
 @app.get("/fixtures")
 async def fixtures(date: str):
     return await get_fixtures_by_date(date)
+
+@app.get("/players")
+async def players(team_id: int, season: int):
+    return await get_players(team_id, season)
+
+@app.get("/teams")
+async def teams(country: str = None, league_id: int = None, season: int = None):
+    return await get_teams(country, league_id, season)
+
+@app.get("/leagues/seasons")
+async def leagues_seasons():
+    return await get_leagues_seasons()
+
+@app.get("/transfers/{player_id}")
+async def transfers(player_id: int):
+    return await get_transfers(player_id)
+
+@app.get("/coachs")
+async def coachs(team_id: int = None, search: str = None):
+    return await get_coachs(team_id, search)
+
