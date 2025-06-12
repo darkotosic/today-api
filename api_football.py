@@ -1,6 +1,8 @@
 import httpx
 import os
 from dotenv import load_dotenv
+from cachetools import TTLCache
+import asyncio
 
 load_dotenv()
 
@@ -10,6 +12,14 @@ BASE_URL = "https://v3.football.api-sports.io"
 headers = {
     "x-apisports-key": API_KEY
 }
+
+# Cache definitions (TTL in seconds)
+fixtures_cache = TTLCache(maxsize=100, ttl=600)  # 10 minutes
+odds_cache = TTLCache(maxsize=1000, ttl=600)
+predictions_cache = TTLCache(maxsize=1000, ttl=600)
+
+# Lock for async cache safety
+cache_lock = asyncio.Lock()
 
 async def get_fixtures_today():
     async with httpx.AsyncClient() as client:
@@ -38,14 +48,25 @@ async def get_live_fixtures():
         )
         return response.json()
 
-async def get_odds(fixture_id: int):
+async def get_odds_cached(fixture_id: int):
+    cache_key = f"odds_{fixture_id}"
+
+    async with cache_lock:
+        if cache_key in odds_cache:
+            return odds_cache[cache_key]
+
     async with httpx.AsyncClient() as client:
         response = await client.get(
             f"{BASE_URL}/odds",
             params={"fixture": fixture_id},
             headers=headers
         )
-        return response.json()
+        data = response.json()
+
+    async with cache_lock:
+        odds_cache[cache_key] = data
+
+    return data
 
 async def get_topscorers(league_id: int):
     async with httpx.AsyncClient() as client:
@@ -119,14 +140,25 @@ async def get_player_statistics(player_id: int, league_id: int):
         )
         return response.json()
 
-async def get_predictions(fixture_id: int):
+async def get_predictions_cached(fixture_id: int):
+    cache_key = f"predictions_{fixture_id}"
+
+    async with cache_lock:
+        if cache_key in predictions_cache:
+            return predictions_cache[cache_key]
+
     async with httpx.AsyncClient() as client:
         response = await client.get(
             f"{BASE_URL}/predictions",
             params={"fixture": fixture_id},
             headers=headers
         )
-        return response.json()
+        data = response.json()
+
+    async with cache_lock:
+        predictions_cache[cache_key] = data
+
+    return data
     
 async def get_leagues():
     async with httpx.AsyncClient() as client:
@@ -138,6 +170,12 @@ async def get_leagues():
 
 
 async def get_fixtures_by_date(date: str):
+    cache_key = f"fixtures_{date}"
+
+    async with cache_lock:
+        if cache_key in fixtures_cache:
+            return fixtures_cache[cache_key]
+
     async with httpx.AsyncClient() as client:
         fixtures_response = await client.get(
             f"{BASE_URL}/fixtures",
@@ -146,44 +184,28 @@ async def get_fixtures_by_date(date: str):
         )
         fixtures_data = fixtures_response.json()
 
-        # Filtiramo fixture-e po kvalitetu
         filtered_fixtures = []
 
         for fixture in fixtures_data.get("response", []):
-            # Provera da li imamo logos i da meč nije postponed
             if (fixture["league"]["logo"] and
                 fixture["teams"]["home"]["logo"] and
                 fixture["teams"]["away"]["logo"] and
                 fixture["fixture"]["status"]["short"] not in ["PST", "CANC"]):
 
-                # Fetchamo odds
-                odds_response = await client.get(
-                    f"{BASE_URL}/odds",
-                    params={"fixture": fixture["fixture"]["id"]},
-                    headers=headers
-                )
-                odds_data = odds_response.json()
-                odds_available = odds_data.get("response", [])
+                odds_data = await get_odds_cached(fixture["fixture"]["id"])
+                predictions_data = await get_predictions_cached(fixture["fixture"]["id"])
 
-                # Fetchamo predictions
-                predictions_response = await client.get(
-                    f"{BASE_URL}/predictions",
-                    params={"fixture": fixture["fixture"]["id"]},
-                    headers=headers
-                )
-                predictions_data = predictions_response.json()
-                predictions_available = predictions_data.get("response", [])
-
-                # Ako imamo odds i predictions → dodajemo fixture u listu
-                if odds_available and predictions_available:
-                    fixture["odds"] = odds_available
-                    fixture["predictions"] = predictions_available
+                if odds_data.get("response") and predictions_data.get("response"):
+                    fixture["odds"] = odds_data.get("response")
+                    fixture["predictions"] = predictions_data.get("response")
                     filtered_fixtures.append(fixture)
 
-        # Vraćamo samo filtrirane fixture-e
-        return {"response": filtered_fixtures}
+        response_to_return = {"response": filtered_fixtures}
 
-    
+    async with cache_lock:
+        fixtures_cache[cache_key] = response_to_return
+
+    return response_to_return
 
 async def get_players(team_id: int, season: int):
     async with httpx.AsyncClient() as client:
