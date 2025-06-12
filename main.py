@@ -1,13 +1,25 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from api_football import (
     get_fixtures_today, get_standings, get_live_fixtures,
     get_odds, get_topscorers, get_injuries, get_headtohead,
     get_events, get_lineups, get_fixture_statistics, get_team_statistics,
     get_player_statistics, get_predictions, get_leagues, 
-    get_fixtures_by_date
+    get_fixtures_by_date, get_players, get_teams, get_leagues_seasons,
+    get_transfers, get_coachs
 )
 
+# PRVO kreiramo app
 app = FastAPI()
+
+# ONDA dodamo CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # ili ["http://localhost:3000"] za striktno samo lokalni front
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def root():
@@ -88,4 +100,3 @@ async def transfers(player_id: int):
 @app.get("/coachs")
 async def coachs(team_id: int = None, search: str = None):
     return await get_coachs(team_id, search)
-
