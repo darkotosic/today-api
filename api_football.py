@@ -189,43 +189,39 @@ async def get_leagues():
         return response.json()
 
 
-async def get_fixtures_by_date(date: str):
-    cache_key = f"fixtures_{date}"
+async def get_predictions_cached(fixture_id: int, is_finished: bool = False):
+    if is_finished:
+        cache_key = f"predictions_ft_{fixture_id}"
+        async with cache_lock:
+            if cache_key in predictions_cache_ft:
+                return predictions_cache_ft[cache_key]
+    else:
+        cache_key = f"predictions_{fixture_id}"
+        async with cache_lock:
+            if cache_key in predictions_cache:
+                return predictions_cache[cache_key]
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{BASE_URL}/predictions",
+                params={"fixture": fixture_id},
+                headers=headers
+            )
+            response.raise_for_status()
+            data = response.json()
+    except Exception as e:
+        print(f"Error fetching predictions for fixture {fixture_id}: {e}")
+        data = {"response": []}  # fallback da ne pukne pipeline
 
     async with cache_lock:
-        if cache_key in fixtures_cache:
-            return fixtures_cache[cache_key]
+        if is_finished:
+            predictions_cache_ft[cache_key] = data
+        else:
+            predictions_cache[cache_key] = data
 
-    async with httpx.AsyncClient() as client:
-        fixtures_response = await client.get(
-            f"{BASE_URL}/fixtures",
-            params={"date": date},
-            headers=headers
-        )
-        fixtures_data = fixtures_response.json()
+    return data
 
-        filtered_fixtures = []
-
-        for fixture in fixtures_data.get("response", []):
-            if (fixture["league"]["logo"] and
-                fixture["teams"]["home"]["logo"] and
-                fixture["teams"]["away"]["logo"] and
-                fixture["fixture"]["status"]["short"] not in ["PST", "CANC"]):
-
-                odds_data = await get_odds_cached(fixture["fixture"]["id"])
-                predictions_data = await get_predictions_cached(fixture["fixture"]["id"])
-
-                if odds_data.get("response") and predictions_data.get("response"):
-                    fixture["odds"] = odds_data.get("response")
-                    fixture["predictions"] = predictions_data.get("response")
-                    filtered_fixtures.append(fixture)
-
-        response_to_return = {"response": filtered_fixtures}
-
-    async with cache_lock:
-        fixtures_cache[cache_key] = response_to_return
-
-    return response_to_return
 
 async def get_players(team_id: int, season: int):
     async with httpx.AsyncClient() as client:
