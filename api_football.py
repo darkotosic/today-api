@@ -249,6 +249,27 @@ async def get_coachs(team_id: int = None, search: str = None):
         response = await client.get(
             f"{BASE_URL}/coachs",
             params=params,
+
+async def get_fixtures_by_date(date: str):
+    cache_key = f"fixtures_{date}"
+
+    async with cache_lock:
+        if cache_key in fixtures_cache:
+            return fixtures_cache[cache_key]
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/fixtures",
+            params={"date": date},
+            headers=headers
+        )
+        data = response.json()
+
+    async with cache_lock:
+        fixtures_cache[cache_key] = data
+
+    return data
+            
             headers=headers
         )
         return response.json()
