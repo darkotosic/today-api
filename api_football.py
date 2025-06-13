@@ -14,19 +14,17 @@ headers = {
 }
 
 # Cache definitions (TTL in seconds)
-fixtures_cache = TTLCache(maxsize=100, ttl=600)  # 10 minutes
+fixtures_cache = TTLCache(maxsize=100, ttl=600)
 odds_cache = TTLCache(maxsize=1000, ttl=600)
 predictions_cache = TTLCache(maxsize=1000, ttl=600)
 
-# Permanent cache for finished matches (FT)
 odds_cache_ft = TTLCache(maxsize=10000, ttl=99999999)
 predictions_cache_ft = TTLCache(maxsize=10000, ttl=99999999)
 
-# Lock for async cache safety
 cache_lock = asyncio.Lock()
 
 # ----------------------------
-# API FUNCTIONS START HERE
+# API FUNCTIONS
 # ----------------------------
 
 async def get_fixtures_today():
@@ -303,12 +301,7 @@ async def get_fixtures_by_date(date: str):
 
             enriched_fixtures.append(fixture)
 
-    # Save to cache
     async with cache_lock:
         fixtures_cache[cache_key] = {"response": enriched_fixtures}
 
     return {"response": enriched_fixtures}
-
-        fixtures_cache[cache_key] = data
-
-    return data
