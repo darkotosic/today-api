@@ -23,9 +23,6 @@ app.add_middleware(
 def root():
     return {"message": "Today API is live"}
 
-@app.get("/fixtures/today")
-async def fixtures_today():
-    return await get_fixtures_today()
 
 @app.get("/standings/{league_id}")
 async def standings(league_id: int):
