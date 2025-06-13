@@ -19,11 +19,15 @@ odds_cache = TTLCache(maxsize=1000, ttl=600)
 predictions_cache = TTLCache(maxsize=1000, ttl=600)
 
 # Permanent cache for finished matches (FT)
-odds_cache_ft = TTLCache(maxsize=10000, ttl=99999999)  # ~ long term
+odds_cache_ft = TTLCache(maxsize=10000, ttl=99999999)
 predictions_cache_ft = TTLCache(maxsize=10000, ttl=99999999)
 
 # Lock for async cache safety
 cache_lock = asyncio.Lock()
+
+# ----------------------------
+# API FUNCTIONS START HERE
+# ----------------------------
 
 async def get_fixtures_today():
     async with httpx.AsyncClient() as client:
@@ -160,7 +164,6 @@ async def get_leagues():
         )
         return response.json()
 
-
 async def get_predictions_cached(fixture_id: int, is_finished: bool = False):
     if is_finished:
         cache_key = f"predictions_ft_{fixture_id}"
@@ -184,7 +187,7 @@ async def get_predictions_cached(fixture_id: int, is_finished: bool = False):
             data = response.json()
     except Exception as e:
         print(f"Error fetching predictions for fixture {fixture_id}: {e}")
-        data = {"response": []}  # fallback da ne pukne pipeline
+        data = {"response": []}
 
     async with cache_lock:
         if is_finished:
@@ -193,7 +196,6 @@ async def get_predictions_cached(fixture_id: int, is_finished: bool = False):
             predictions_cache[cache_key] = data
 
     return data
-
 
 async def get_players(team_id: int, season: int):
     async with httpx.AsyncClient() as client:
@@ -253,7 +255,6 @@ async def get_coachs(team_id: int = None, search: str = None):
         )
         return response.json()
 
-# Fixtures by date
 async def get_fixtures_by_date(date: str):
     cache_key = f"fixtures_{date}"
 
@@ -273,8 +274,3 @@ async def get_fixtures_by_date(date: str):
         fixtures_cache[cache_key] = data
 
     return data
-
-            
-            headers=headers
-        )
-        return response.json()
