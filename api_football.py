@@ -238,18 +238,6 @@ async def get_transfers(player_id: int):
         )
         return response.json()
 
-async def get_coachs(team_id: int = None, search: str = None):
-    async with httpx.AsyncClient() as client:
-        params = {}
-        if team_id:
-            params["team"] = team_id
-        if search:
-            params["search"] = search
-
-        response = await client.get(
-            f"{BASE_URL}/coachs",
-            params=params,
-
 async def get_fixtures_by_date(date: str):
     cache_key = f"fixtures_{date}"
 
