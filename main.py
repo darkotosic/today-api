@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # ... imports ...
 from api_football import (
     get_fixtures_today, get_standings, get_live_fixtures,
-    get_odds, get_topscorers, get_injuries, get_headtohead,
+    get_odds_cached, get_topscorers, get_injuries, get_headtohead,
     get_events, get_lineups, get_fixture_statistics, get_team_statistics,
     get_player_statistics, get_predictions, get_leagues,
     get_fixtures_by_date, get_players, get_teams, get_leagues_seasons,
@@ -37,7 +37,7 @@ async def live():
 
 @app.get("/odds/{fixture_id}")
 async def odds(fixture_id: int):
-    return await get_odds(fixture_id)
+    return await get_odds_cached(fixture_id)
 
 @app.get("/players/topscorers/{league_id}")
 async def players_topscorers(league_id: int):
