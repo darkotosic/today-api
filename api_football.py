@@ -270,45 +270,44 @@ async def get_fixtures_by_date(date: str):
         )
         fixtures_data = response.json().get("response", [])
 
-    # enrich svaki fixture sa predictions + odds
-    enriched_fixtures = []
+        enriched_fixtures = []
 
-    for fixture in fixtures_data:
-        fixture_id = fixture["fixture"]["id"]
+        for fixture in fixtures_data:
+            fixture_id = fixture["fixture"]["id"]
 
-        # get predictions
-        try:
-            pred_response = await client.get(
-                f"{BASE_URL}/predictions",
-                params={"fixture": fixture_id},
-                headers=headers
-            )
-            predictions_data = pred_response.json().get("response", [])
-            fixture["predictions"] = predictions_data
-        except Exception as e:
-            print(f"Error fetching predictions for fixture {fixture_id}: {e}")
-            fixture["predictions"] = []
+            # get predictions
+            try:
+                pred_response = await client.get(
+                    f"{BASE_URL}/predictions",
+                    params={"fixture": fixture_id},
+                    headers=headers
+                )
+                predictions_data = pred_response.json().get("response", [])
+                fixture["predictions"] = predictions_data
+            except Exception as e:
+                print(f"Error fetching predictions for fixture {fixture_id}: {e}")
+                fixture["predictions"] = []
 
-        # get odds
-        try:
-            odds_response = await client.get(
-                f"{BASE_URL}/odds",
-                params={"fixture": fixture_id},
-                headers=headers
-            )
-            odds_data = odds_response.json().get("response", [])
-            fixture["odds"] = odds_data
-        except Exception as e:
-            print(f"Error fetching odds for fixture {fixture_id}: {e}")
-            fixture["odds"] = []
+            # get odds
+            try:
+                odds_response = await client.get(
+                    f"{BASE_URL}/odds",
+                    params={"fixture": fixture_id},
+                    headers=headers
+                )
+                odds_data = odds_response.json().get("response", [])
+                fixture["odds"] = odds_data
+            except Exception as e:
+                print(f"Error fetching odds for fixture {fixture_id}: {e}")
+                fixture["odds"] = []
 
-        enriched_fixtures.append(fixture)
+            enriched_fixtures.append(fixture)
 
-    # cache it
+    # Save to cache
     async with cache_lock:
-        fixtures_cache[cache_key] = { "response": enriched_fixtures }
+        fixtures_cache[cache_key] = {"response": enriched_fixtures}
 
-    return { "response": enriched_fixtures }
+    return {"response": enriched_fixtures}
 
         fixtures_cache[cache_key] = data
 
