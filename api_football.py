@@ -152,34 +152,6 @@ async def get_player_statistics(player_id: int, league_id: int):
         )
         return response.json()
 
-async def get_predictions_cached(fixture_id: int, is_finished: bool = False):
-    if is_finished:
-        cache_key = f"predictions_ft_{fixture_id}"
-        async with cache_lock:
-            if cache_key in predictions_cache_ft:
-                return predictions_cache_ft[cache_key]
-    else:
-        cache_key = f"predictions_{fixture_id}"
-        async with cache_lock:
-            if cache_key in predictions_cache:
-                return predictions_cache[cache_key]
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/predictions",
-            params={"fixture": fixture_id},
-            headers=headers
-        )
-        data = response.json()
-
-    async with cache_lock:
-        if is_finished:
-            predictions_cache_ft[cache_key] = data
-        else:
-            predictions_cache[cache_key] = data
-
-    return data
-    
 async def get_leagues():
     async with httpx.AsyncClient() as client:
         response = await client.get(
