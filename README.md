@@ -1,63 +1,79 @@
-# Today API - General Purpose Football API Backend
+# ⚽ Today API – Multipurpose Football Backend
 
-This is a general-purpose backend built on **FastAPI** using the official [API-FOOTBALL V3](https://www.api-football.com/documentation-v3) to power:
+A powerful backend built on **FastAPI** that integrates **API-FOOTBALL V3**, built to serve:
 
 ✅ Web apps  
 ✅ Android apps  
 ✅ Telegram bots  
-✅ Internal tools  
 ✅ Admin dashboards  
+✅ Internal prediction tools  
 
 ---
 
-## 🚀 Base URL
-
 
 ---
 
-## ✅ Available Endpoints
+## 📡 Endpoints Overview
 
-### ⚽ Fixtures
-
-- `GET /fixtures/today` → Today fixtures
-- `GET /fixtures?date=YYYY-MM-DD` → Fixtures for given date
-- `GET /fixtures/events/{fixture_id}` → Match events
-- `GET /fixtures/lineups/{fixture_id}` → Match lineups
-- `GET /fixtures/statistics/{fixture_id}` → Match statistics
+### 🗓 Fixtures
+- `GET /fixtures?date=YYYY-MM-DD` – Matches for selected date
+- `GET /fixtures/events/{fixture_id}`
+- `GET /fixtures/lineups/{fixture_id}`
+- `GET /fixtures/statistics/{fixture_id}`
+- `GET /fixtures/headtohead/{team1_id}/{team2_id}`
+- `GET /live`
 
 ### 📊 Odds & Predictions
+- `GET /odds/{fixture_id}`
+- `GET /predictions/{fixture_id}`
+- `GET /odds/live`
+- `GET /odds/live/bets`
 
-- `GET /odds/{fixture_id}` → Match odds (1X2 etc.)
-- `GET /predictions/{fixture_id}` → Match predictions (Winner, Advice, %)
+### 🏆 Leagues
+- `GET /leagues`
+- `GET /leagues/seasons`
+- `GET /standings/{league_id}`
 
-### 🏆 Leagues & Standings
+### 👥 Teams
+- `GET /teams?country=&league_id=&season=`
+- `GET /teams/statistics/{team_id}/{league_id}`
+- `GET /teams/countries`
 
-- `GET /leagues` → List of leagues
-- `GET /standings/{league_id}` → League standings
-- `GET /leagues/seasons` → Available seasons
+### 🧍‍♂️ Players
+- `GET /players?team_id=&season=`
+- `GET /players/statistics/{player_id}/{league_id}`
+- `GET /players/topscorers/{league_id}`
+- `GET /players/topassists/{league_id}`
+- `GET /players/topyellowcards/{league_id}`
+- `GET /players/topredcards/{league_id}`
+- `GET /players/squads/{team_id}/{season}`
 
-### 👥 Teams & Players
+### 🩼 Injuries & Sidelined
+- `GET /injuries/{league_id}`
+- `GET /injuries?ids=...`
+- `GET /sidelined?players=...&coachs=...`
 
-- `GET /teams` → List of teams (by country, league or season)
-- `GET /teams/statistics/{team_id}/{league_id}` → Team statistics
-- `GET /players` → Players of a team and season
-- `GET /players/statistics/{player_id}/{league_id}` → Player statistics
-- `GET /players/topscorers/{league_id}` → Top scorers in league
+### 🔁 Transfers & Coachs
+- `GET /transfers/{player_id}`
+- `GET /coachs?team_id=&search=...`
 
-### 🚑 Injuries & Transfers
+### 🏅 Trophies
+- `GET /trophies?players=...&coachs=...`
 
-- `GET /injuries/{league_id}` → League injuries
-- `GET /transfers/{player_id}` → Player transfer history
+---
 
-### ⚔️ Head-to-Head & Live Matches
+## ⚙️ Tech Stack
+- FastAPI
+- httpx (async client)
+- cachetools (TTLCache)
+- python-dotenv
+- Deployed on Render.com
 
-- `GET /headtohead/{team1_id}/{team2_id}` → H2H results
-- `GET /live` → Live matches
+---
 
-### 👨‍🏫 Coachs
-
-- `GET /coachs` → List/search coachs
-
+## 🔐 .env setup
+API_FOOTBALL_KEY=your_api_key_here
+BASE_URL=https://v3.football.api-sports.io
 ---
 
 ## 💻 Tech Stack
@@ -75,8 +91,20 @@ This is a general-purpose backend built on **FastAPI** using the official [API-F
 
 ---
 
-## 🛠️ How to run locally
+♻️ Design Philosophy
+🔁 Fully multipurpose – reusable across frontend, mobile, bot projects
+
+✅ All endpoints return {"response": [...]} format
+
+🧠 Built-in intelligent caching to reduce API usage
+
+🧩 Easily extendable to new API-FOOTBALL endpoints
+
+---
+
+## 🚀 Local Development
 
 ```bash
 pip install -r requirements.txt
 uvicorn main:app --reload
+
