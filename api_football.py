@@ -35,50 +35,9 @@ async def fetch(endpoint, params=None, ttl_cache=None, cache_key=None, timeout=5
     except Exception:
         return {"response": []}
 
-# Fixtures with enrichment and filtering
-async def get_fixtures_by_date(date: str):
-    cache_key = f"fixtures_enriched_{date}"
-    async with cache_lock:
-        if cache_key in fixture_cache:
-            return fixture_cache[cache_key]
-
-    try:
-        raw = await fetch("fixtures", {"date": date, "timezone": "Europe/Belgrade"}, None, None)
-        enriched = []
-
-        for fx in raw.get("response", []):
-            fid = fx.get("fixture", {}).get("id")
-            timestamp = fx.get("fixture", {}).get("timestamp")
-            if not fid or not timestamp:
-                continue
-
-            # Enrich with odds & predictions
-            pred = await get_predictions_cached(fid)
-            odds = await get_odds_cached(fid)
-            fx["predictions"] = pred.get("response", [])
-            fx["odds"] = odds.get("response", [])
-
-            # Filter: Only fixtures with logos and league data
-            league_logo = fx.get("league", {}).get("logo", "")
-            country_flag = fx.get("league", {}).get("flag", "")
-            team_home_logo = fx.get("teams", {}).get("home", {}).get("logo", "")
-            team_away_logo = fx.get("teams", {}).get("away", {}).get("logo", "")
-
-            if all([
-                league_logo,
-                country_flag,
-                team_home_logo and "0.png" not in team_home_logo,
-                team_away_logo and "0.png" not in team_away_logo
-            ]):
-                enriched.append(fx)
-
-        result = {"response": enriched}
-        async with cache_lock:
-            fixture_cache[cache_key] = result
-        return result
-
-    except Exception as e:
-        return {"response": [], "error": str(e)}
+# Test funkcija bez filtriranja
+async def get_raw_fixtures(date: str):
+    return await fetch("fixtures", {"date": date, "timezone": "Europe/Belgrade"}, None, None)
         
 async def get_live_fixtures():
     return await fetch("fixtures", {"live": "all", "timezone": "Europe/Belgrade"}, fixture_cache, "live_fixtures")
