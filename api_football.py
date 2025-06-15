@@ -79,8 +79,7 @@ async def get_fixtures_by_date(date: str):
 
     except Exception as e:
         return {"response": [], "error": str(e)}
-
-
+        
 async def get_live_fixtures():
     return await fetch("fixtures", {"live": "all", "timezone": "Europe/Belgrade"}, fixture_cache, "live_fixtures")
 
@@ -100,8 +99,12 @@ async def get_headtohead(team1_id: int, team2_id: int):
 async def get_odds_cached(fixture_id: int):
     return await fetch("odds", {"fixture": fixture_id}, odds_cache, f"odds_{fixture_id}")
 
+# Single fixture enrichment
 async def get_predictions_cached(fixture_id: int):
     return await fetch("predictions", {"fixture": fixture_id}, predictions_cache, f"pred_{fixture_id}")
+
+async def get_odds_cached(fixture_id: int):
+    return await fetch("odds", {"fixture": fixture_id}, odds_cache, f"odds_{fixture_id}")
 
 async def get_live_odds():
     return await fetch("odds/live", {}, odds_cache, "live_odds")
