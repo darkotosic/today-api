@@ -35,6 +35,57 @@ async def fetch(endpoint, params=None, ttl_cache=None, cache_key=None, timeout=5
     except Exception:
         return {"response": []}
 
+# Fixtures with enrichment and filtering (safe version)
+async def get_fixtures_by_date(date: str):
+    try:
+        cache_key = f"fixtures_enriched_{date}"
+        async with cache_lock:
+            if cache_key in fixture_cache:
+                return fixture_cache[cache_key]
+
+        raw = await fetch("fixtures", {"date": date, "timezone": "Europe/Belgrade"}, None, None)
+        if not raw or "response" not in raw:
+            return {"response": []}
+
+        enriched = []
+
+        for fx in raw["response"]:
+            fixture = fx.get("fixture", {})
+            teams = fx.get("teams", {})
+            league = fx.get("league", {})
+
+            fid = fixture.get("id")
+            if not fid:
+                continue
+
+            # Safe fetch predictions and odds
+            try:
+                pred = await get_predictions_cached(fid)
+                odds = await get_odds_cached(fid)
+            except Exception:
+                pred = {"response": []}
+                odds = {"response": []}
+
+            fx["predictions"] = pred.get("response", [])
+            fx["odds"] = odds.get("response", [])
+
+            # Logos check
+            if (
+                league.get("logo") and
+                teams.get("home", {}).get("logo") and
+                teams.get("away", {}).get("logo")
+            ):
+                enriched.append(fx)
+
+        result = {"response": enriched}
+        async with cache_lock:
+            fixture_cache[cache_key] = result
+        return result
+
+    except Exception as e:
+        return {"response": [], "error": str(e)}
+
+
 # Test funkcija bez filtriranja
 async def get_raw_fixtures(date: str):
     return await fetch("fixtures", {"date": date, "timezone": "Europe/Belgrade"}, None, None)
