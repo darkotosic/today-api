@@ -1,216 +1,175 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from datetime import date, timedelta
-from api_football import *
+import os
+import httpx
+import asyncio
+from dotenv import load_dotenv
+from cachetools import TTLCache
+from datetime import date
 
-app = FastAPI()
+load_dotenv()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+API_KEY = os.getenv("API_FOOTBALL_KEY")
+BASE_URL = "https://v3.football.api-sports.io"
+HEADERS = {"x-apisports-key": API_KEY}
 
-@app.get("/")
-def root():
-    return {"message": "Today API is live"}
+# Global caches
+CACHE_TTL_SHORT = 300
+CACHE_TTL_MEDIUM = 3600
+CACHE_TTL_LONG = 86400
 
-@app.get("/meta/debug-fixtures")
-async def debug_fixtures(date: str):
-    return await get_fixtures_by_date(date)
+fixture_cache = TTLCache(maxsize=1000, ttl=CACHE_TTL_SHORT)
+predictions_cache = TTLCache(maxsize=1000, ttl=CACHE_TTL_MEDIUM)
+odds_cache = TTLCache(maxsize=1000, ttl=CACHE_TTL_MEDIUM)
+general_cache = TTLCache(maxsize=1000, ttl=CACHE_TTL_LONG)
 
-# Fixtures & Related
-@app.get("/fixtures")
-async def fixtures(date: str):
-    return await get_fixtures_by_date(date)
+cache_lock = asyncio.Lock()
 
-@app.get("/fixtures/today")
-async def fixtures_today():
-    return await get_fixtures_by_date(date.today().isoformat())
+async def fetch(endpoint, params=None, ttl_cache=None, cache_key=None, timeout=5.0):
+    if ttl_cache and cache_key:
+        async with cache_lock:
+            if cache_key in ttl_cache:
+                return ttl_cache[cache_key]
 
-@app.get("/fixtures/yesterday")
-async def fixtures_yesterday():
-    return await get_fixtures_by_date((date.today() - timedelta(days=1)).isoformat())
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.get(f"{BASE_URL}/{endpoint}", params=params, headers=HEADERS)
+            data = response.json()
+            if ttl_cache is not None and cache_key:
+                async with cache_lock:
+                    ttl_cache[cache_key] = data
+            return data
+    except Exception:
+        return {"response": []}
 
-@app.get("/fixtures/tomorrow")
-async def fixtures_tomorrow():
-    return await get_fixtures_by_date((date.today() + timedelta(days=1)).isoformat())
+# FIXTURES
+async def get_fixtures_by_date(date: str):
+    cache_key = f"fixtures_{date}"
+    data = await fetch("fixtures", {"date": date, "timezone": "Europe/Belgrade"}, fixture_cache, cache_key)
+    enriched = []
+    for fx in data.get("response", []):
+        try:
+            fixture = fx.get("fixture", {})
+            teams = fx.get("teams", {})
+            league = fx.get("league", {})
 
-@app.get("/live")
-async def live():
-    return await get_live_fixtures()
+            fid = fixture.get("id")
+            timestamp = fixture.get("timestamp")
+            if not fid or not timestamp:
+                continue
 
-@app.get("/fixtures/events/{fixture_id}")
-async def events(fixture_id: int):
-    return await get_events(fixture_id)
+            team_home_logo = teams.get("home", {}).get("logo", "")
+            team_away_logo = teams.get("away", {}).get("logo", "")
+            league_logo = league.get("logo", "")
+            country_flag = league.get("flag", "")
 
-@app.get("/fixtures/lineups/{fixture_id}")
-async def lineups(fixture_id: int):
-    return await get_lineups(fixture_id)
+            if not all([
+                team_home_logo and "0.png" not in team_home_logo,
+                team_away_logo and "0.png" not in team_away_logo,
+                league_logo,
+                country_flag
+            ]):
+                continue
 
-@app.get("/fixtures/statistics/{fixture_id}")
-async def fixture_statistics(fixture_id: int):
-    return await get_fixture_statistics(fixture_id)
+            pred = await get_predictions_cached(fid)
+            odds = await get_odds_cached(fid)
+            fx["predictions"] = pred.get("response", [])
+            fx["odds"] = odds.get("response", [])
 
-@app.get("/fixtures/headtohead/{team1_id}/{team2_id}")
-async def headtohead(team1_id: int, team2_id: int):
-    return await get_headtohead(team1_id, team2_id)
+            enriched.append(fx)
+        except Exception:
+            continue
+    return {"response": enriched}
 
-# Odds & Predictions
-@app.get("/odds/{fixture_id}")
-async def odds(fixture_id: int):
-    return await get_odds_cached(fixture_id)
+async def get_live_fixtures():
+    return await fetch("fixtures", {"live": "all"}, fixture_cache, "live")
 
-@app.get("/predictions/{fixture_id}")
-async def predictions(fixture_id: int):
-    return await get_predictions_cached(fixture_id)
+# ODDS & PREDICTIONS
+async def get_odds_cached(fixture_id: int):
+    return await fetch("odds", {"fixture": fixture_id}, odds_cache, f"odds_{fixture_id}")
 
-@app.get("/odds/batch")
-async def batch_odds(fixtures: str):
-    ids = fixtures.split(",")
-    results = []
-    for fid in ids:
-        data = await get_odds_cached(int(fid))
-        results.append({"fixture_id": fid, "odds": data})
-    return {"response": results}
+async def get_predictions_cached(fixture_id: int):
+    return await fetch("predictions", {"fixture": fixture_id}, predictions_cache, f"pred_{fixture_id}")
 
-@app.get("/predictions/batch")
-async def batch_predictions(fixtures: str):
-    ids = fixtures.split(",")
-    results = []
-    for fid in ids:
-        data = await get_predictions_cached(int(fid))
-        results.append({"fixture_id": fid, "predictions": data})
-    return {"response": results}
+# STANDINGS
+async def get_standings(league_id: int):
+    return await fetch("standings", {"league": league_id}, general_cache, f"standings_{league_id}")
 
-@app.get("/odds/all")
-async def all_odds(date: str):
-    fixtures_data = await get_fixtures_by_date(date)
-    fixtures = fixtures_data.get("response", [])
-    results = []
-    for fx in fixtures:
-        fid = fx["fixture"]["id"]
-        odds = await get_odds_cached(fid)
-        results.append({"fixture_id": fid, "odds": odds})
-    return {"response": results}
+# LEAGUES
+async def get_leagues():
+    return await fetch("leagues", {}, general_cache, "leagues")
 
-@app.get("/predictions/all")
-async def all_predictions(date: str):
-    fixtures_data = await get_fixtures_by_date(date)
-    fixtures = fixtures_data.get("response", [])
-    results = []
-    for fx in fixtures:
-        fid = fx["fixture"]["id"]
-        pred = await get_predictions_cached(fid)
-        results.append({"fixture_id": fid, "predictions": pred})
-    return {"response": results}
+async def get_leagues_seasons():
+    return await fetch("leagues/seasons", {}, general_cache, "seasons")
 
-@app.get("/odds/live")
-async def odds_live():
-    return await get_odds_live()
+# TEAMS
+async def get_teams(country=None, league_id=None, season=None):
+    params = {"country": country, "league": league_id, "season": season}
+    return await fetch("teams", params, general_cache, f"teams_{country}_{league_id}_{season}")
 
-@app.get("/odds/live/bets")
-async def odds_live_bets():
-    return await get_odds_live_bets()
+async def get_teams_countries():
+    return await fetch("teams/countries", {}, general_cache, "teams_countries")
 
-# Standings & League Info
-@app.get("/standings/{league_id}")
-async def standings(league_id: int):
-    return await get_standings(league_id)
+async def get_team_statistics(team_id: int, league_id: int):
+    return await fetch("teams/statistics", {"team": team_id, "league": league_id}, general_cache, f"team_stats_{team_id}_{league_id}")
 
-@app.get("/standings/all")
-async def all_standings(league_ids: str):
-    ids = league_ids.split(",")
-    results = []
-    for lid in ids:
-        standings = await get_standings(int(lid))
-        results.append({"league_id": lid, "data": standings})
-    return {"response": results}
+# PLAYERS
+async def get_players(team_id: int, season: int):
+    return await fetch("players", {"team": team_id, "season": season}, general_cache, f"players_{team_id}_{season}")
 
-@app.get("/leagues")
-async def leagues():
-    return await get_leagues()
+async def get_player_statistics(player_id: int, league_id: int):
+    return await fetch("players", {"id": player_id, "league": league_id}, general_cache, f"player_stats_{player_id}_{league_id}")
 
-@app.get("/leagues/seasons")
-async def leagues_seasons():
-    return await get_leagues_seasons()
+async def get_topscorers(league_id: int):
+    return await fetch("players/topscorers", {"league": league_id}, general_cache, f"topscorers_{league_id}")
 
-# Teams
-@app.get("/teams")
-async def teams(country: str = None, league_id: int = None, season: int = None):
-    return await get_teams(country, league_id, season)
+async def get_topassists(league_id: int):
+    return await fetch("players/topassists", {"league": league_id}, general_cache, f"topassists_{league_id}")
 
-@app.get("/teams/all")
-async def teams_all(league_ids: str, season: int):
-    ids = league_ids.split(",")
-    results = []
-    for lid in ids:
-        teams = await get_teams(None, int(lid), season)
-        results.append({"league_id": lid, "data": teams})
-    return {"response": results}
+async def get_topyellowcards(league_id: int):
+    return await fetch("players/topyellowcards", {"league": league_id}, general_cache, f"topyellow_{league_id}")
 
-@app.get("/teams/statistics/{team_id}/{league_id}")
-async def team_statistics(team_id: int, league_id: int):
-    return await get_team_statistics(team_id, league_id)
+async def get_topredcards(league_id: int):
+    return await fetch("players/topredcards", {"league": league_id}, general_cache, f"topred_{league_id}")
 
-@app.get("/teams/countries")
-async def teams_countries():
-    return await get_teams_countries()
+async def get_players_squad(team_id: int, season: int):
+    return await fetch("players/squads", {"team": team_id, "season": season}, general_cache, f"squad_{team_id}_{season}")
 
-# Players
-@app.get("/players")
-async def players(team_id: int, season: int):
-    return await get_players(team_id, season)
+# FIXTURE DETAILS
+async def get_events(fixture_id: int):
+    return await fetch("fixtures/events", {"fixture": fixture_id}, fixture_cache, f"events_{fixture_id}")
 
-@app.get("/players/statistics/{player_id}/{league_id}")
-async def player_statistics(player_id: int, league_id: int):
-    return await get_player_statistics(player_id, league_id)
+async def get_lineups(fixture_id: int):
+    return await fetch("fixtures/lineups", {"fixture": fixture_id}, fixture_cache, f"lineups_{fixture_id}")
 
-@app.get("/players/topscorers/{league_id}")
-async def players_topscorers(league_id: int):
-    return await get_topscorers(league_id)
+async def get_fixture_statistics(fixture_id: int):
+    return await fetch("fixtures/statistics", {"fixture": fixture_id}, fixture_cache, f"fxstats_{fixture_id}")
 
-@app.get("/players/topassists/{league_id}")
-async def players_topassists(league_id: int):
-    return await get_topassists(league_id)
+async def get_headtohead(team1_id: int, team2_id: int):
+    return await fetch("fixtures/headtohead", {"h2h": f"{team1_id}-{team2_id}"}, fixture_cache, f"h2h_{team1_id}_{team2_id}")
 
-@app.get("/players/topyellowcards/{league_id}")
-async def players_topyellow(league_id: int):
-    return await get_topyellowcards(league_id)
+# INJURIES
+async def get_injuries(league_id: int):
+    return await fetch("injuries", {"league": league_id}, general_cache, f"injuries_{league_id}")
 
-@app.get("/players/topredcards/{league_id}")
-async def players_topred(league_id: int):
-    return await get_topredcards(league_id)
+async def get_injuries_by_ids(ids: str):
+    return await fetch("injuries", {"ids": ids}, general_cache, f"injuries_ids_{ids}")
 
-@app.get("/players/squads/{team_id}/{season}")
-async def players_squads(team_id: int, season: int):
-    return await get_players_squad(team_id, season)
+# EXTRA
+async def get_sidelined(players: str = None, coachs: str = None):
+    return await fetch("sidelined", {"players": players, "coachs": coachs}, general_cache, f"sidelined_{players}_{coachs}")
 
-# Injuries & Sidelined
-@app.get("/injuries/{league_id}")
-async def injuries(league_id: int):
-    return await get_injuries(league_id)
+async def get_trophies(players: str = None, coachs: str = None):
+    return await fetch("trophies", {"players": players, "coachs": coachs}, general_cache, f"trophies_{players}_{coachs}")
 
-@app.get("/injuries")
-async def injuries_by_ids(ids: str):
-    return await get_injuries_by_ids(ids)
+# TRANSFERS & COACHS
+async def get_transfers(player_id: int):
+    return await fetch("transfers", {"player": player_id}, general_cache, f"transfers_{player_id}")
 
-@app.get("/sidelined")
-async def sidelined(players: str = None, coachs: str = None):
-    return await get_sidelined(players, coachs)
+async def get_coachs(team_id: int = None, search: str = None):
+    return await fetch("coachs", {"team": team_id, "search": search}, general_cache, f"coachs_{team_id}_{search}")
 
-# Transfers & Coachs
-@app.get("/transfers/{player_id}")
-async def transfers(player_id: int):
-    return await get_transfers(player_id)
+# LIVE ODDS
+async def get_odds_live():
+    return await fetch("odds/live", {}, fixture_cache, "odds_live")
 
-@app.get("/coachs")
-async def coachs(team_id: int = None, search: str = None):
-    return await get_coachs(team_id, search)
-
-# Trophies
-@app.get("/trophies")
-async def trophies(players: str = None, coachs: str = None):
-    return await get_trophies(players, coachs)
+async def get_odds_live_bets():
+    return await fetch("odds/live/bets", {}, fixture_cache, "odds_live_bets")
