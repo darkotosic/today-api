@@ -3,6 +3,7 @@ import httpx
 import asyncio
 from dotenv import load_dotenv
 from cachetools import TTLCache
+from datetime import date
 
 load_dotenv()
 
