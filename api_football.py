@@ -1,307 +1,158 @@
-import httpx
 import os
+import httpx
+import asyncio
 from dotenv import load_dotenv
 from cachetools import TTLCache
-import asyncio
 
 load_dotenv()
 
 API_KEY = os.getenv("API_FOOTBALL_KEY")
 BASE_URL = "https://v3.football.api-sports.io"
+HEADERS = {"x-apisports-key": API_KEY}
 
-headers = {
-    "x-apisports-key": API_KEY
-}
+# Global caches
+CACHE_TTL_SHORT = 300  # 5 min for live
+CACHE_TTL_MEDIUM = 3600  # 1h for standard
+CACHE_TTL_LONG = 86400  # 24h for static data
 
-# Cache definitions (TTL in seconds)
-fixtures_cache = TTLCache(maxsize=100, ttl=600)
-odds_cache = TTLCache(maxsize=1000, ttl=600)
-predictions_cache = TTLCache(maxsize=1000, ttl=600)
-
-odds_cache_ft = TTLCache(maxsize=10000, ttl=99999999)
-predictions_cache_ft = TTLCache(maxsize=10000, ttl=99999999)
+fixture_cache = TTLCache(maxsize=1000, ttl=CACHE_TTL_SHORT)
+predictions_cache = TTLCache(maxsize=1000, ttl=CACHE_TTL_MEDIUM)
+odds_cache = TTLCache(maxsize=1000, ttl=CACHE_TTL_MEDIUM)
+general_cache = TTLCache(maxsize=1000, ttl=CACHE_TTL_LONG)
 
 cache_lock = asyncio.Lock()
 
-# ----------------------------
-# API FUNCTIONS
-# ----------------------------
-
-async def get_fixtures_today():
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/fixtures",
-            params={"date": "2025-06-11"},
-            headers=headers
-        )
-        return response.json()
-
-async def get_standings(league_id: int):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/standings",
-            params={"league": league_id, "season": "2024"},
-            headers=headers
-        )
-        return response.json()
-
-async def get_live_fixtures():
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/fixtures",
-            params={"live": "all"},
-            headers=headers
-        )
-        return response.json()
-
-async def get_odds_cached(fixture_id: int, is_finished: bool = False):
-    if is_finished:
-        cache_key = f"odds_ft_{fixture_id}"
+async def fetch(endpoint, params=None, ttl_cache=None, cache_key=None, timeout=5.0):
+    if ttl_cache and cache_key:
         async with cache_lock:
-            if cache_key in odds_cache_ft:
-                return odds_cache_ft[cache_key]
-    else:
-        cache_key = f"odds_{fixture_id}"
-        async with cache_lock:
-            if cache_key in odds_cache:
-                return odds_cache[cache_key]
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/odds",
-            params={"fixture": fixture_id},
-            headers=headers
-        )
-        data = response.json()
-
-    async with cache_lock:
-        if is_finished:
-            odds_cache_ft[cache_key] = data
-        else:
-            odds_cache[cache_key] = data
-
-    return data
-
-async def get_topscorers(league_id: int):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/players/topscorers",
-            params={"league": league_id, "season": "2024"},
-            headers=headers
-        )
-        return response.json()
-
-async def get_injuries(league_id: int):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/injuries",
-            params={"league": league_id, "season": "2024"},
-            headers=headers
-        )
-        return response.json()
-
-async def get_headtohead(team1_id: int, team2_id: int):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/fixtures/headtohead",
-            params={"h2h": f"{team1_id}-{team2_id}"},
-            headers=headers
-        )
-        return response.json()
-
-async def get_events(fixture_id: int):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/fixtures/events",
-            params={"fixture": fixture_id},
-            headers=headers
-        )
-        return response.json()
-
-async def get_lineups(fixture_id: int):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/fixtures/lineups",
-            params={"fixture": fixture_id},
-            headers=headers
-        )
-        return response.json()
-
-async def get_fixture_statistics(fixture_id: int):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/fixtures/statistics",
-            params={"fixture": fixture_id},
-            headers=headers
-        )
-        return response.json()
-
-async def get_team_statistics(team_id: int, league_id: int):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/teams/statistics",
-            params={"team": team_id, "league": league_id, "season": "2024"},
-            headers=headers
-        )
-        return response.json()
-
-async def get_player_statistics(player_id: int, league_id: int):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/players",
-            params={"id": player_id, "league": league_id, "season": "2024"},
-            headers=headers
-        )
-        return response.json()
-
-async def get_leagues():
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/leagues",
-            headers=headers
-        )
-        return response.json()
-
-async def get_predictions_cached(fixture_id: int, is_finished: bool = False):
-    if is_finished:
-        cache_key = f"predictions_ft_{fixture_id}"
-        async with cache_lock:
-            if cache_key in predictions_cache_ft:
-                return predictions_cache_ft[cache_key]
-    else:
-        cache_key = f"predictions_{fixture_id}"
-        async with cache_lock:
-            if cache_key in predictions_cache:
-                return predictions_cache[cache_key]
+            if cache_key in ttl_cache:
+                return ttl_cache[cache_key]
 
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{BASE_URL}/predictions",
-                params={"fixture": fixture_id},
-                headers=headers
-            )
-            response.raise_for_status()
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.get(f"{BASE_URL}/{endpoint}", params=params, headers=HEADERS)
             data = response.json()
-    except Exception as e:
-        print(f"Error fetching predictions for fixture {fixture_id}: {e}")
-        data = {"response": []}
+            if ttl_cache is not None and cache_key:
+                async with cache_lock:
+                    ttl_cache[cache_key] = data
+            return data
+    except Exception:
+        return {"response": []}
 
-    async with cache_lock:
-        if is_finished:
-            predictions_cache_ft[cache_key] = data
-        else:
-            predictions_cache[cache_key] = data
-
-    return data
-
-async def get_players(team_id: int, season: int):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/players",
-            params={"team": team_id, "season": season},
-            headers=headers
-        )
-        return response.json()
-
-async def get_teams(country: str = None, league_id: int = None, season: int = None):
-    async with httpx.AsyncClient() as client:
-        params = {}
-        if country:
-            params["country"] = country
-        if league_id:
-            params["league"] = league_id
-        if season:
-            params["season"] = season
-
-        response = await client.get(
-            f"{BASE_URL}/teams",
-            params=params,
-            headers=headers
-        )
-        return response.json()
-
-async def get_leagues_seasons():
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/leagues/seasons",
-            headers=headers
-        )
-        return response.json()
-
-async def get_transfers(player_id: int):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/transfers",
-            params={"player": player_id},
-            headers=headers
-        )
-        return response.json()
-
-async def get_coachs(team_id: int = None, search: str = None):
-    async with httpx.AsyncClient() as client:
-        params = {}
-        if team_id:
-            params["team"] = team_id
-        if search:
-            params["search"] = search
-
-        response = await client.get(
-            f"{BASE_URL}/coachs",
-            params=params,
-            headers=headers
-        )
-        return response.json()
-
+# Fixtures
 async def get_fixtures_by_date(date: str):
     cache_key = f"fixtures_{date}"
+    data = await fetch("fixtures", {"date": date, "timezone": "Europe/Belgrade"}, fixture_cache, cache_key)
+    enriched = []
+    for fx in data.get("response", [])[:20]:
+        fid = fx["fixture"]["id"]
+        pred = await get_predictions_cached(fid)
+        odds = await get_odds_cached(fid)
+        fx["predictions"] = pred.get("response", [])
+        fx["odds"] = odds.get("response", [])
+        try:
+            if all([
+                fx.get("teams", {}).get("home", {}).get("logo"),
+                fx.get("teams", {}).get("away", {}).get("logo"),
+                fx.get("league", {}).get("logo"),
+                fx.get("league", {}).get("name"),
+            ]):
+                enriched.append(fx)
+        except:
+            continue
+    return {"response": enriched}
 
-    async with cache_lock:
-        if cache_key in fixtures_cache:
-            return fixtures_cache[cache_key]
+async def get_live_fixtures():
+    return await fetch("fixtures", {"live": "all"}, fixture_cache, "live")
 
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{BASE_URL}/fixtures",
-            params={"date": date},
-            headers=headers
-        )
-        fixtures_data = response.json().get("response", [])
+# Odds & Predictions
+async def get_odds_cached(fixture_id: int):
+    return await fetch("odds", {"fixture": fixture_id}, odds_cache, f"odds_{fixture_id}")
 
-        enriched_fixtures = []
+async def get_predictions_cached(fixture_id: int):
+    return await fetch("predictions", {"fixture": fixture_id}, predictions_cache, f"pred_{fixture_id}")
 
-        for fixture in fixtures_data:
-            fixture_id = fixture["fixture"]["id"]
+# Standings
+async def get_standings(league_id: int):
+    return await fetch("standings", {"league": league_id}, general_cache, f"standings_{league_id}")
 
-            # get predictions
-            try:
-                pred_response = await client.get(
-                    f"{BASE_URL}/predictions",
-                    params={"fixture": fixture_id},
-                    headers=headers
-                )
-                predictions_data = pred_response.json().get("response", [])
-                fixture["predictions"] = predictions_data
-            except Exception as e:
-                print(f"Error fetching predictions for fixture {fixture_id}: {e}")
-                fixture["predictions"] = []
+# Leagues
+async def get_leagues():
+    return await fetch("leagues", {}, general_cache, "leagues")
 
-            # get odds
-            try:
-                odds_response = await client.get(
-                    f"{BASE_URL}/odds",
-                    params={"fixture": fixture_id},
-                    headers=headers
-                )
-                odds_data = odds_response.json().get("response", [])
-                fixture["odds"] = odds_data
-            except Exception as e:
-                print(f"Error fetching odds for fixture {fixture_id}: {e}")
-                fixture["odds"] = []
+async def get_leagues_seasons():
+    return await fetch("leagues/seasons", {}, general_cache, "seasons")
 
-            enriched_fixtures.append(fixture)
+# Teams
+async def get_teams(country=None, league_id=None, season=None):
+    params = {"country": country, "league": league_id, "season": season}
+    return await fetch("teams", params, general_cache, f"teams_{country}_{league_id}_{season}")
 
-    async with cache_lock:
-        fixtures_cache[cache_key] = {"response": enriched_fixtures}
+async def get_teams_countries():
+    return await fetch("teams/countries", {}, general_cache, "teams_countries")
 
-    return {"response": enriched_fixtures}
+async def get_team_statistics(team_id: int, league_id: int):
+    return await fetch("teams/statistics", {"team": team_id, "league": league_id}, general_cache, f"team_stats_{team_id}_{league_id}")
+
+# Players
+async def get_players(team_id: int, season: int):
+    return await fetch("players", {"team": team_id, "season": season}, general_cache, f"players_{team_id}_{season}")
+
+async def get_player_statistics(player_id: int, league_id: int):
+    return await fetch("players", {"id": player_id, "league": league_id}, general_cache, f"player_stats_{player_id}_{league_id}")
+
+async def get_topscorers(league_id: int):
+    return await fetch("players/topscorers", {"league": league_id}, general_cache, f"topscorers_{league_id}")
+
+async def get_topassists(league_id: int):
+    return await fetch("players/topassists", {"league": league_id}, general_cache, f"topassists_{league_id}")
+
+async def get_topyellowcards(league_id: int):
+    return await fetch("players/topyellowcards", {"league": league_id}, general_cache, f"topyellow_{league_id}")
+
+async def get_topredcards(league_id: int):
+    return await fetch("players/topredcards", {"league": league_id}, general_cache, f"topred_{league_id}")
+
+async def get_players_squad(team_id: int, season: int):
+    return await fetch("players/squads", {"team": team_id, "season": season}, general_cache, f"squad_{team_id}_{season}")
+
+# Fixtures details
+async def get_events(fixture_id: int):
+    return await fetch("fixtures/events", {"fixture": fixture_id}, fixture_cache, f"events_{fixture_id}")
+
+async def get_lineups(fixture_id: int):
+    return await fetch("fixtures/lineups", {"fixture": fixture_id}, fixture_cache, f"lineups_{fixture_id}")
+
+async def get_fixture_statistics(fixture_id: int):
+    return await fetch("fixtures/statistics", {"fixture": fixture_id}, fixture_cache, f"fxstats_{fixture_id}")
+
+async def get_headtohead(team1_id: int, team2_id: int):
+    return await fetch("fixtures/headtohead", {"h2h": f"{team1_id}-{team2_id}"}, fixture_cache, f"h2h_{team1_id}_{team2_id}")
+
+# Injuries
+async def get_injuries(league_id: int):
+    return await fetch("injuries", {"league": league_id}, general_cache, f"injuries_{league_id}")
+
+async def get_injuries_by_ids(ids: str):
+    return await fetch("injuries", {"ids": ids}, general_cache, f"injuries_ids_{ids}")
+
+# Sidelined & Trophies
+async def get_sidelined(players: str = None, coachs: str = None):
+    return await fetch("sidelined", {"players": players, "coachs": coachs}, general_cache, f"sidelined_{players}_{coachs}")
+
+async def get_trophies(players: str = None, coachs: str = None):
+    return await fetch("trophies", {"players": players, "coachs": coachs}, general_cache, f"trophies_{players}_{coachs}")
+
+# Transfers & Coachs
+async def get_transfers(player_id: int):
+    return await fetch("transfers", {"player": player_id}, general_cache, f"transfers_{player_id}")
+
+async def get_coachs(team_id: int = None, search: str = None):
+    return await fetch("coachs", {"team": team_id, "search": search}, general_cache, f"coachs_{team_id}_{search}")
+
+# Live Odds
+async def get_odds_live():
+    return await fetch("odds/live", {}, fixture_cache, "odds_live")
+
+async def get_odds_live_bets():
+    return await fetch("odds/live/bets", {}, fixture_cache, "odds_live_bets")
