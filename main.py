@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import date, timedelta
 from api_football import *
 
 app = FastAPI()
@@ -20,6 +21,18 @@ def root():
 @app.get("/fixtures")
 async def fixtures(date: str):
     return await get_fixtures_by_date(date)
+
+@app.get("/fixtures/today")
+async def fixtures_today():
+    return await get_fixtures_by_date(date.today().isoformat())
+
+@app.get("/fixtures/yesterday")
+async def fixtures_yesterday():
+    return await get_fixtures_by_date((date.today() - timedelta(days=1)).isoformat())
+
+@app.get("/fixtures/tomorrow")
+async def fixtures_tomorrow():
+    return await get_fixtures_by_date((date.today() + timedelta(days=1)).isoformat())
 
 @app.get("/live")
 async def live():
@@ -50,10 +63,67 @@ async def odds(fixture_id: int):
 async def predictions(fixture_id: int):
     return await get_predictions_cached(fixture_id)
 
+@app.get("/odds/batch")
+async def batch_odds(fixtures: str):
+    ids = fixtures.split(",")
+    results = []
+    for fid in ids:
+        data = await get_odds_cached(int(fid))
+        results.append({"fixture_id": fid, "odds": data})
+    return {"response": results}
+
+@app.get("/predictions/batch")
+async def batch_predictions(fixtures: str):
+    ids = fixtures.split(",")
+    results = []
+    for fid in ids:
+        data = await get_predictions_cached(int(fid))
+        results.append({"fixture_id": fid, "predictions": data})
+    return {"response": results}
+
+@app.get("/odds/all")
+async def all_odds(date: str):
+    fixtures_data = await get_fixtures_by_date(date)
+    fixtures = fixtures_data.get("response", [])
+    results = []
+    for fx in fixtures:
+        fid = fx["fixture"]["id"]
+        odds = await get_odds_cached(fid)
+        results.append({"fixture_id": fid, "odds": odds})
+    return {"response": results}
+
+@app.get("/predictions/all")
+async def all_predictions(date: str):
+    fixtures_data = await get_fixtures_by_date(date)
+    fixtures = fixtures_data.get("response", [])
+    results = []
+    for fx in fixtures:
+        fid = fx["fixture"]["id"]
+        pred = await get_predictions_cached(fid)
+        results.append({"fixture_id": fid, "predictions": pred})
+    return {"response": results}
+
+@app.get("/odds/live")
+async def odds_live():
+    return await get_odds_live()
+
+@app.get("/odds/live/bets")
+async def odds_live_bets():
+    return await get_odds_live_bets()
+
 # Standings & League Info
 @app.get("/standings/{league_id}")
 async def standings(league_id: int):
     return await get_standings(league_id)
+
+@app.get("/standings/all")
+async def all_standings(league_ids: str):
+    ids = league_ids.split(",")
+    results = []
+    for lid in ids:
+        standings = await get_standings(int(lid))
+        results.append({"league_id": lid, "data": standings})
+    return {"response": results}
 
 @app.get("/leagues")
 async def leagues():
@@ -67,6 +137,15 @@ async def leagues_seasons():
 @app.get("/teams")
 async def teams(country: str = None, league_id: int = None, season: int = None):
     return await get_teams(country, league_id, season)
+
+@app.get("/teams/all")
+async def teams_all(league_ids: str, season: int):
+    ids = league_ids.split(",")
+    results = []
+    for lid in ids:
+        teams = await get_teams(None, int(lid), season)
+        results.append({"league_id": lid, "data": teams})
+    return {"response": results}
 
 @app.get("/teams/statistics/{team_id}/{league_id}")
 async def team_statistics(team_id: int, league_id: int):
@@ -131,12 +210,3 @@ async def coachs(team_id: int = None, search: str = None):
 @app.get("/trophies")
 async def trophies(players: str = None, coachs: str = None):
     return await get_trophies(players, coachs)
-
-# Live Odds
-@app.get("/odds/live")
-async def odds_live():
-    return await get_odds_live()
-
-@app.get("/odds/live/bets")
-async def odds_live_bets():
-    return await get_odds_live_bets()
