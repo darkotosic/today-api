@@ -1,4 +1,7 @@
-from fastapi import FastAPI from fastapi.middleware.cors import CORSMiddleware from datetime import date, timedelta from api_football import *
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from datetime import date, timedelta
+from api_football import *
 
 app = FastAPI()
 
