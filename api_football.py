@@ -54,10 +54,6 @@ async def get_fixture_statistics(fixture_id: int):
 async def get_headtohead(team1_id: int, team2_id: int):
     return await fetch("fixtures/headtohead", {"h2h": f"{team1_id}-{team2_id}"}, general_cache, f"h2h_{team1_id}_{team2_id}")
 
-# Odds & Predictions
-async def get_odds_cached(fixture_id: int):
-    return await fetch("odds", {"fixture": fixture_id}, odds_cache, f"odds_{fixture_id}")
-
 # Single fixture enrichment
 async def get_predictions_cached(fixture_id: int):
     return await fetch("predictions", {"fixture": fixture_id}, predictions_cache, f"pred_{fixture_id}")
