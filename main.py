@@ -158,3 +158,56 @@ async def test_raw(date: str):
     from api_football import get_raw_fixtures
     return await get_raw_fixtures(date)
 
+@app.get("/teams/statistics/all")
+async def all_team_stats():
+    leagues_data = await get_leagues()
+    results = []
+    for lg in leagues_data["response"]:
+        league_id = lg["league"]["id"]
+        season = lg["seasons"][-1]["year"]
+        try:
+            teams = await get_teams(league_id=league_id, season=season)
+            for t in teams["response"]:
+                team_id = t["team"]["id"]
+                stats = await get_team_statistics(team_id, league_id)
+                results.append({
+                    "team_id": team_id,
+                    "league_id": league_id,
+                    "stats": stats.get("response", {})
+                })
+        except:
+            continue
+    return {"response": results}
+
+@app.get("/standings/all")
+async def all_standings():
+    leagues_data = await get_leagues()
+    results = []
+    for lg in leagues_data["response"]:
+        league_id = lg["league"]["id"]
+        try:
+            standings = await get_standings(league_id)
+            results.append({
+                "league_id": league_id,
+                "standings": standings.get("response", [])
+            })
+        except:
+            continue
+    return {"response": results}
+
+@app.get("/fixtures/full-today")
+async def full_today():
+    from datetime import date
+    today_str = date.today().isoformat()
+    fixtures_data = await get_raw_fixtures(today_str)
+    results = []
+    for fx in fixtures_data["response"]:
+        fid = fx["fixture"]["id"]
+        pred = await get_predictions_cached(fid)
+        odds = await get_odds_cached(fid)
+        fx["predictions"] = pred.get("response", [])
+        fx["odds"] = odds.get("response", [])
+        results.append(fx)
+    return {"response": results}
+
+
