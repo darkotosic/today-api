@@ -192,3 +192,12 @@ async def get_trophies(players=None, coachs=None):
     if players: params["player"] = players
     if coachs: params["coach"] = coachs
     return await fetch("trophies", params, general_cache, f"trophies_{players}_{coachs}")
+
+async def fetch_odds_general(fixture=None, league=None, season=None, date=None):
+    params = {}
+    if fixture: params["fixture"] = fixture
+    if league: params["league"] = league
+    if season: params["season"] = season
+    if date: params["date"] = date
+    return await fetch("odds", params, odds_cache, f"odds_{fixture}_{league}_{season}_{date}")
+
