@@ -224,4 +224,26 @@ async def full_today():
         results.append(fx)
     return {"response": results}
 
+@app.get("/fixtures/full-details")
+async def full_fixture_details(date: str):
+    fixtures_data = await get_raw_fixtures(date)
+    results = []
+    for fx in fixtures_data["response"]:
+        try:
+            fid = fx["fixture"]["id"]
+            fx["predictions"] = (await get_predictions_cached(fid)).get("response", [])
+            fx["odds"] = (await get_odds_cached(fid)).get("response", [])
+            fx["events"] = (await get_events(fid)).get("response", [])
+            fx["lineups"] = (await get_lineups(fid)).get("response", [])
+            fx["statistics"] = (await get_fixture_statistics(fid)).get("response", [])
+
+            # Optional H2H
+            home_id = fx["teams"]["home"]["id"]
+            away_id = fx["teams"]["away"]["id"]
+            fx["h2h"] = (await get_headtohead(home_id, away_id)).get("response", [])
+
+            results.append(fx)
+        except Exception:
+            continue
+    return {"response": results}
 
