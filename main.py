@@ -72,6 +72,21 @@ async def odds_live():
 async def odds_live_bets():
     return await get_live_odds_bets()
 
+@app.get("/odds")
+async def odds_all(fixture: int = None, league: int = None, season: int = None, date: str = None):
+    params = {}
+    if fixture:
+        params["fixture"] = fixture
+    if league:
+        params["league"] = league
+    if season:
+        params["season"] = season
+    if date:
+        params["date"] = date
+
+    return await fetch("odds", params, odds_cache, f"odds_{fixture}_{league}_{season}_{date}")
+
+
 # Leagues & Standings
 @app.get("/leagues")
 async def leagues():
