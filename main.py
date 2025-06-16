@@ -152,3 +152,9 @@ async def coachs(team_id: int = None, search: str = None):
 @app.get("/trophies")
 async def trophies(players: str = None, coachs: str = None):
     return await get_trophies(players, coachs)
+
+@app.get("/test")
+async def test_raw(date: str):
+    from api_football import get_raw_fixtures
+    return await get_raw_fixtures(date)
+
