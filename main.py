@@ -86,7 +86,6 @@ async def odds_all(fixture: int = None, league: int = None, season: int = None, 
 
     return await fetch("odds", params, odds_cache, f"odds_{fixture}_{league}_{season}_{date}")
 
-
 # Leagues & Standings
 @app.get("/leagues")
 async def leagues():
