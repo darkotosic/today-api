@@ -15,7 +15,6 @@ HEADERS = {"x-apisports-key": API_KEY}
 
 # —――――――――――――――――――――――――――――――――
 # Global HTTP client (reused for all requests)
-# HTTP/2 enabled for multiplexing
 _client = httpx.AsyncClient(
     base_url=BASE_URL,
     headers=HEADERS,
@@ -24,7 +23,7 @@ _client = httpx.AsyncClient(
 )
 
 # —――――――――――――――――――――――――――――――――
-# Caches with asyncio lock to avoid race conditions
+# Caches + lock
 fixture_cache     = TTLCache(maxsize=1000, ttl=300)
 predictions_cache = TTLCache(maxsize=1000, ttl=3600)
 odds_cache        = TTLCache(maxsize=1000, ttl=3600)
@@ -38,11 +37,6 @@ async def fetch(
     cache: Optional[TTLCache] = None,
     cache_key: Optional[str] = None
 ) -> Dict[str, Any]:
-    """
-    Core fetcher that reuses a single HTTPX client,
-    optionally caches responses in an async-safe TTLCache.
-    """
-    # Check cache
     if cache is not None and cache_key is not None:
         async with _cache_lock:
             if cache_key in cache:
@@ -53,10 +47,8 @@ async def fetch(
         resp.raise_for_status()
         data = resp.json()
     except Exception:
-        # On any error (timeout, HTTP error, JSON decode, etc.), return empty response
         data = {"response": []}
 
-    # Store in cache
     if cache is not None and cache_key is not None:
         async with _cache_lock:
             cache[cache_key] = data
@@ -87,19 +79,12 @@ async def get_fixtures_by_date(date_str: str) -> Dict[str, Any]:
         if cache_key in fixture_cache:
             return fixture_cache[cache_key]
 
-    raw = await fetch("fixtures", {"date": date_str, "timezone": "Europe/Belgrade"})
-    resp = raw.get("response") or []
+    raw = await get_raw_fixtures(date_str)
+    resp = raw.get("response", [])
     enriched = []
 
     for fx in resp:
-        fixture = fx.get("fixture", {})
-        league  = fx.get("league", {})
-        teams   = fx.get("teams", {})
-        fid     = fixture.get("id")
-        if not fid:
-            continue
-
-        # Parallel fetch of predictions and odds
+        fid     = fx["fixture"]["id"]
         pred_task = get_predictions_cached(fid)
         odds_task = get_odds_cached(fid)
         pred, odds = await asyncio.gather(pred_task, odds_task)
@@ -107,8 +92,10 @@ async def get_fixtures_by_date(date_str: str) -> Dict[str, Any]:
         fx["predictions"] = pred.get("response", [])
         fx["odds"]        = odds.get("response", [])
 
-        # Only include if logos exist
-        if league.get("logo") and teams.get("home", {}).get("logo") and teams.get("away", {}).get("logo"):
+        # filter out ones missing logos
+        league = fx["league"]
+        teams  = fx["teams"]
+        if league.get("logo") and teams["home"].get("logo") and teams["away"].get("logo"):
             enriched.append(fx)
 
     result = {"response": enriched}
@@ -186,6 +173,23 @@ async def get_live_odds_bets() -> Dict[str, Any]:
         cache_key="live_odds_bets"
     )
 
+async def fetch_odds_general(
+    fixture: Optional[int] = None,
+    league: Optional[int] = None,
+    season: Optional[int] = None,
+    date: Optional[str] = None
+) -> Dict[str, Any]:
+    params: Dict[str, Any] = {}
+    if fixture is not None:
+        params["fixture"] = fixture
+    if league is not None:
+        params["league"] = league
+    if season is not None:
+        params["season"] = season
+    if date is not None:
+        params["date"] = date
+    return await fetch("odds", params=params)
+
 
 # —――――――――――――――――――――――――――――――――
 # Leagues & Standings
@@ -206,8 +210,7 @@ async def get_standings(league_id: int) -> Dict[str, Any]:
 
 
 # —――――――――――――――――――――――――――――――――
-# Teams & Players
-
+# Teams & Players (unchanged)
 async def get_teams(country: Optional[str] = None,
                     league_id: Optional[int] = None,
                     season: Optional[int] = None) -> Dict[str, Any]:
@@ -287,11 +290,10 @@ async def get_squad(team_id: int, season: int) -> Dict[str, Any]:
 
 
 # —――――――――――――――――――――――――――――――――
-# Injuries, Transfers, Coaches, Trophies
-
+# Injuries, Transfers, Coaches, Trophies (unchanged)
 async def get_injuries(league_id: Optional[int] = None,
                        ids: Optional[str] = None) -> Dict[str, Any]:
-    params: Dict[str, Any] = {}
+    params = {}
     if league_id: params["league"] = league_id
     if ids:       params["fixture"] = ids
     key = f"injuries_{league_id}_{ids}"
@@ -299,7 +301,7 @@ async def get_injuries(league_id: Optional[int] = None,
 
 async def get_sidelined(players: Optional[str] = None,
                         coaches: Optional[str] = None) -> Dict[str, Any]:
-    params: Dict[str, Any] = {}
+    params = {}
     if players: params["player"] = players
     if coaches: params["coach"]  = coaches
     key = f"sidelined_{players}_{coaches}"
@@ -313,9 +315,9 @@ async def get_transfers(player_id: int) -> Dict[str, Any]:
         cache_key=f"transfers_{player_id}"
     )
 
-async def get_coaches(team_id: Optional[int] = None,
+async def get_coachs(team_id: Optional[int] = None,
                       search: Optional[str] = None) -> Dict[str, Any]:
-    params: Dict[str, Any] = {}
+    params = {}
     if team_id: params["team"]   = team_id
     if search:  params["search"] = search
     key = f"coaches_{team_id}_{search}"
@@ -323,7 +325,7 @@ async def get_coaches(team_id: Optional[int] = None,
 
 async def get_trophies(players: Optional[str] = None,
                        coaches: Optional[str] = None) -> Dict[str, Any]:
-    params: Dict[str, Any] = {}
+    params = {}
     if players: params["player"] = players
     if coaches: params["coach"]  = coaches
     key = f"trophies_{players}_{coaches}"
