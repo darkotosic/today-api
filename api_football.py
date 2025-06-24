@@ -330,3 +330,20 @@ async def get_trophies(players: Optional[str] = None,
     if coaches: params["coach"]  = coaches
     key = f"trophies_{players}_{coaches}"
     return await fetch("trophies", params=params, cache=general_cache, cache_key=key)
+
+async def get_predictions_by_date(date_str: str) -> Dict[str, Any]:
+    raw = await get_raw_fixtures(date_str)
+    resp = raw.get("response", [])
+    results = []
+    for fx in resp:
+        fid = fx["fixture"]["id"]
+        pred = await get_predictions_cached(fid)
+        fx_pred = {
+            "fixture": fx["fixture"],
+            "league": fx["league"],
+            "teams": fx["teams"],
+            "predictions": pred.get("response", [])
+        }
+        results.append(fx_pred)
+    return {"response": results}
+
