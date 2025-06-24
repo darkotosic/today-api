@@ -37,7 +37,8 @@ from api_football import (
     get_coachs,
     get_trophies,
     get_predictions_by_date,
-    get_odds_by_date
+    get_odds_by_date,
+    get_comparison_by_date
 )
 
 app = FastAPI(default_response_class=ORJSONResponse)
@@ -334,3 +335,7 @@ async def predictions(date: str):
 @app.get("/odds")
 async def odds(date: str):
     return await get_odds_by_date(date)
+
+@app.get("/comparison")
+async def comparison(date: str):
+    return await get_comparison_by_date(date)
