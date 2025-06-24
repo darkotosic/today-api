@@ -347,3 +347,19 @@ async def get_predictions_by_date(date_str: str) -> Dict[str, Any]:
         results.append(fx_pred)
     return {"response": results}
 
+async def get_odds_by_date(date_str: str) -> Dict[str, Any]:
+    raw = await get_raw_fixtures(date_str)
+    resp = raw.get("response", [])
+    results = []
+    for fx in resp:
+        fid = fx["fixture"]["id"]
+        odds = await get_odds_cached(fid)
+        fx_odds = {
+            "fixture": fx["fixture"],
+            "league": fx["league"],
+            "teams": fx["teams"],
+            "odds": odds.get("response", [])
+        }
+        results.append(fx_odds)
+    return {"response": results}
+
