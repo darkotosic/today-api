@@ -324,3 +324,8 @@ async def all_standings():
         for lg, res in zip(leagues, standings_results)
     ]
     return {"response": response}
+
+@app.get("/predictions")
+async def predictions(date: str):
+    return await get_predictions_by_date(date)
+
