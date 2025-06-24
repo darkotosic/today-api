@@ -363,3 +363,24 @@ async def get_odds_by_date(date_str: str) -> Dict[str, Any]:
         results.append(fx_odds)
     return {"response": results}
 
+async def get_comparison_by_date(date_str: str):
+    # Iskoristi već batch predictions endpoint
+    raw = await get_raw_fixtures(date_str)
+    resp = raw.get("response", [])
+    results = []
+    for fx in resp:
+        fid = fx["fixture"]["id"]
+        pred = await get_predictions_cached(fid)
+        # Pročitaj comparison ako postoji
+        comparison = None
+        if pred and pred.get("response") and pred["response"]:
+            p = pred["response"][0]
+            comparison = p.get("comparison")
+        if comparison:
+            results.append({
+                "fixture": fx["fixture"],
+                "league": fx["league"],
+                "teams": fx["teams"],
+                "comparison": comparison
+            })
+    return {"response": results}
