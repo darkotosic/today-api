@@ -36,6 +36,8 @@ from api_football import (
     get_transfers,
     get_coachs,
     get_trophies,
+    get_predictions_by_date,
+    get_odds_by_date
 )
 
 app = FastAPI(default_response_class=ORJSONResponse)
@@ -329,3 +331,6 @@ async def all_standings():
 async def predictions(date: str):
     return await get_predictions_by_date(date)
 
+@app.get("/odds")
+async def odds(date: str):
+    return await get_odds_by_date(date)
