@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import ORJSONResponse
+from fastapi.responses import ORJSONResponse, PlainTextResponse
 
 from api_football import (
     get_fixtures_by_date,
@@ -339,3 +339,9 @@ async def odds(date: str):
 @app.get("/comparison")
 async def comparison(date: str):
     return await get_comparison_by_date(date)
+
+# ─── DODAJ OVO NA DNO: /ping ruta ──────────────────────────────
+
+@app.get("/ping", response_class=PlainTextResponse)
+async def ping():
+    return "pong"
