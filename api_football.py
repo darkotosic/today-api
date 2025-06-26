@@ -384,3 +384,33 @@ async def get_comparison_by_date(date_str: str):
                 "comparison": comparison
             })
     return {"response": results}
+
+# ─── Novi dodati endpointi ────────────────────────────────────────
+
+async def get_home_draw_away(fixture_id: int) -> Dict[str, Any]:
+    odds = await get_odds_cached(fixture_id)
+    return {"response": odds.get("response", [])}
+
+async def get_btts(fixture_id: int) -> Dict[str, Any]:
+    predictions = await get_predictions_cached(fixture_id)
+    btts = predictions.get("response", [{}])[0].get("predictions", {}).get("both_teams_to_score")
+    return {"btts": btts}
+
+async def get_goals_over_under(fixture_id: int) -> Dict[str, Any]:
+    predictions = await get_predictions_cached(fixture_id)
+    goals = predictions.get("response", [{}])[0].get("predictions", {}).get("goals")
+    return {"goals": goals}
+
+async def get_cards_corners(fixture_id: int) -> Dict[str, Any]:
+    predictions = await get_predictions_cached(fixture_id)
+    corners = predictions.get("response", [{}])[0].get("predictions", {}).get("corners")
+    cards = predictions.get("response", [{}])[0].get("predictions", {}).get("cards")
+    return {"corners": corners, "cards": cards}
+
+async def get_historical_results(team_id: int, season: int) -> Dict[str, Any]:
+    return await fetch(
+        "fixtures",
+        params={"team": team_id, "season": season},
+        cache=general_cache,
+        cache_key=f"historical_{team_id}_{season}"
+   )
