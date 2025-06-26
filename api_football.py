@@ -412,9 +412,8 @@ async def get_historical_results(team_id: int, season: int) -> Dict[str, Any]:
         "fixtures",
         params={"team": team_id, "season": season},
         cache=general_cache,
-
-from typing import Any, Dict, List, Optional
-import asyncio
+        cache_key=f"historical_{team_id}_{season}"
+    )
 
 # ─── BTTS Odds by Date ─────────────────────────────────────────────────────────
 
