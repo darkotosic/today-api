@@ -370,10 +370,10 @@ async def historical_results(team_id: int, season: int):
 
 # ─── BTTS Odds Endpoint ────────────────────────────────────────────────────────
 
-@app.get("/odds/btts")
+@app.get("/odds/btts/{date}")
 async def odds_btts(date: str):
     """
-    GET /odds/btts?date=YYYY-MM-DD
+    GET /odds/btts/{date}
     Returns for each fixture on that date its BTTS Yes/No odds.
     """
     return await get_btts_odds_by_date(date)
