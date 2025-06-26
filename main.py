@@ -38,7 +38,12 @@ from api_football import (
     get_trophies,
     get_predictions_by_date,
     get_odds_by_date,
-    get_comparison_by_date
+    get_comparison_by_date,
+    get_home_draw_away,
+    get_btts,
+    get_goals_over_under,
+    get_cards_corners,
+    get_historical_results
 )
 
 app = FastAPI(default_response_class=ORJSONResponse)
@@ -339,6 +344,29 @@ async def odds(date: str):
 @app.get("/comparison")
 async def comparison(date: str):
     return await get_comparison_by_date(date)
+
+# ─── Novi endpointi za dodatne analitike ──────────────────────────────────────
+
+@app.get("/predictions/home-draw-away/{fixture_id}")
+async def home_draw_away(fixture_id: int):
+    return await get_home_draw_away(fixture_id)
+
+@app.get("/predictions/btts/{fixture_id}")
+async def predictions_btts(fixture_id: int):
+    return await get_btts(fixture_id)
+
+@app.get("/predictions/goals-over-under/{fixture_id}")
+async def predictions_goals_over_under(fixture_id: int):
+    return await get_goals_over_under(fixture_id)
+
+@app.get("/predictions/cards-corners/{fixture_id}")
+async def predictions_cards_corners(fixture_id: int):
+    return await get_cards_corners(fixture_id)
+
+@app.get("/historical-results/{team_id}/{season}")
+async def historical_results(team_id: int, season: int):
+    return await get_historical_results(team_id, season)
+
 
 # ─── DODAJ OVO NA DNO: /ping ruta ──────────────────────────────
 
