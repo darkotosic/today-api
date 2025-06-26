@@ -43,7 +43,8 @@ from api_football import (
     get_btts,
     get_goals_over_under,
     get_cards_corners,
-    get_historical_results
+    get_historical_results,
+    get_btts_odds_by_date
 )
 
 app = FastAPI(default_response_class=ORJSONResponse)
@@ -367,6 +368,15 @@ async def predictions_cards_corners(fixture_id: int):
 async def historical_results(team_id: int, season: int):
     return await get_historical_results(team_id, season)
 
+# ─── BTTS Odds Endpoint ────────────────────────────────────────────────────────
+
+@app.get("/odds/btts")
+async def odds_btts(date: str):
+    """
+    GET /odds/btts?date=YYYY-MM-DD
+    Returns for each fixture on that date its BTTS Yes/No odds.
+    """
+    return await get_btts_odds_by_date(date)
 
 # ─── DODAJ OVO NA DNO: /ping ruta ──────────────────────────────
 
