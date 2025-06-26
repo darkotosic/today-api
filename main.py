@@ -377,9 +377,3 @@ async def odds_btts(date: str):
     Returns for each fixture on that date its BTTS Yes/No odds.
     """
     return await get_btts_odds_by_date(date)
-
-# ─── DODAJ OVO NA DNO: /ping ruta ──────────────────────────────
-
-@app.get("/ping", response_class=PlainTextResponse)
-async def ping():
-    return "pong"
