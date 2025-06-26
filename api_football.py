@@ -1,7 +1,7 @@
 import os
 import asyncio
 from datetime import date
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 from cachetools import TTLCache
