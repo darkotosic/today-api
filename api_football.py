@@ -412,5 +412,52 @@ async def get_historical_results(team_id: int, season: int) -> Dict[str, Any]:
         "fixtures",
         params={"team": team_id, "season": season},
         cache=general_cache,
+
+# ─── BTTS Odds by Date ─────────────────────────────────────────────────────────
+
+async def get_btts_odds_by_date(date_str: str) -> Dict[str, Any]:
+    """
+    For each fixture on `date_str`, fetch its odds and extract
+    the first “Both Teams To Score” market (id=5):
+      - btts_yes (float | None)
+      - btts_no  (float | None)
+    """
+    raw = await get_raw_fixtures(date_str)
+    fixtures = raw.get("response", [])
+    results = []
+
+    for fx in fixtures:
+        fid = fx["fixture"]["id"]
+        odds_data = await get_odds_cached(fid)
+        found = False
+
+        for bm in odds_data.get("response", []):
+            for bet in bm.get("bets", []):
+                if bet.get("id") == 5:  # market 5 = BTTS
+                    # pull the first Yes/No odds
+                    yes = next(
+                        (float(v["odd"]) for v in bet.get("values", [])
+                         if v.get("value") == "Yes"),
+                        None
+                    )
+                    no = next(
+                        (float(v["odd"]) for v in bet.get("values", [])
+                         if v.get("value") == "No"),
+                        None
+                    )
+                    results.append({
+                        "fixture": fx["fixture"],
+                        "league":  fx["league"],
+                        "teams":   fx["teams"],
+                        "btts_yes": yes,
+                        "btts_no":  no
+                    })
+                    found = True
+                    break
+            if found:
+                break
+
+    return {"response": results}
+        
         cache_key=f"historical_{team_id}_{season}"
    )
